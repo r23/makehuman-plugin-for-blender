@@ -7,6 +7,8 @@ bl_info = {
 }
 
 import bpy
+import bpy.types
+from bpy.types import ShaderNodeGroup
 import bmesh
 import pprint
 import struct
@@ -21,11 +23,11 @@ from .import_proxy_binary import ImportProxyBinary
 from .import_weighting import ImportWeighting
 from ..util import *
 from .meshutils import *
-from ..extra_groups import vgroupInfo
+from ..extra_groups import vgroupInfo, noMatGroups
 
 pp = pprint.PrettyPrinter(indent=4)
 
-ENABLE_PROFILING_OUTPUT = True
+ENABLE_PROFILING_OUTPUT = False
 
 class ImportBodyBinary():
 
@@ -49,6 +51,7 @@ class ImportBodyBinary():
         self.importWhat = str(bpy.context.scene.MhImportWhat)
         self.helpers = str(bpy.context.scene.MhHandleHelper)
         self.subdiv = bpy.context.scene.MhAddSubdiv
+        self.subdivLevels = bpy.context.scene.MhSubdivLevels
         self.matobjname = bpy.context.scene.MhMaterialObjectName
         self.importRig = bpy.context.scene.MhImportRig
         self.detailedHelpers = bpy.context.scene.MhDetailedHelpers
@@ -63,6 +66,7 @@ class ImportBodyBinary():
         self.enhancedSSS = bpy.context.scene.MhEnhancedSSS
         self.extraGroups = bpy.context.scene.MhExtraGroups
         self.extraSlots = bpy.context.scene.MhExtraSlots
+        self.tweakSlots = bpy.context.scene.MhTweakSlots
 
         self.baseColor = (1.0, 0.7, 0.7)
 
@@ -323,7 +327,9 @@ class ImportBodyBinary():
             mask.show_in_editmode = True
             mask.show_on_cage = True
 
-        if self.addSimpleMaterials:
+        # since we need groups to color the body materials are only added when groups are created
+        #
+        if self.detailedHelpers and self.addSimpleMaterials:
             bpy.ops.mh_community.add_simple_materials()
 
         self._profile("handleHelpers")
@@ -378,30 +384,70 @@ class ImportBodyBinary():
                 newvg.add(verts, 1.0, 'ADD')
 
     def vgroupMaterials(self, mat):
-        vgi = vgroupInfo["basemesh"]
+        
+        vgroupOverrides = dict();
+        
+        if self.tweakSlots != "NONE":
+            overrideName = "default";
+            if self.tweakSlots == "PALE": overrideName="pale"
+            if self.tweakSlots == "TAN": overrideName="tan"
+            if self.tweakSlots == "ASIAN": overrideName="asian"
+            
+            overridesDir = os.path.join(os.path.dirname(__file__),"..","data","nodes","skinOverridePresets")            
+            overrideFile = os.path.join(overridesDir, overrideName + ".json")
+            
+            with open(overrideFile,"r") as f:
+                vgroupOverrides = json.load(f)
+        
+        vgi = dict(vgroupInfo["basemesh"])
+        vgi["body"] = []
+        
         self._deselectAll()
         activateObject(self.obj)
 
+        #print("\n\n\nVGROUPMATERIALS\n")    
+        #print("Overrides:")
+        #pprint.pprint(vgroupOverrides)
+        #print("vgi:")
+        #pprint.pprint(vgi.keys())
+        
         for key in vgi:
-            matname = key
-            verts = vgi[key]
 
-            if self.prefixMaterial:
-                matname = self.name + "." + matname
-
-            newMat = mat.copy()
-            newMat.name = matname
-            self.obj.data.materials.append(newMat)
-
-            matidx = self.obj.material_slots.find(matname)
-            bpy.context.object.active_material_index = matidx
-
-            bpy.ops.object.vertex_group_set_active(group=key)
-            bpy.ops.object.editmode_toggle()
-            bpy.ops.mesh.select_all(action='DESELECT')
-            bpy.ops.object.vertex_group_select()
-            bpy.ops.object.material_slot_assign()
-            bpy.ops.object.editmode_toggle()
+            if not key in noMatGroups:            
+                matname = key
+    
+                if self.prefixMaterial:
+                    matname = self.name + "." + matname
+    
+                newMat = mat.copy()
+                newMat.name = matname
+                
+                self.obj.data.materials.append(newMat)
+    
+                matidx = self.obj.material_slots.find(matname)
+                bpy.context.object.active_material_index = matidx
+    
+                bpy.ops.object.vertex_group_set_active(group=key)
+                bpy.ops.object.editmode_toggle()
+                bpy.ops.mesh.select_all(action='DESELECT')
+                bpy.ops.object.vertex_group_select()
+                bpy.ops.object.material_slot_assign()
+                bpy.ops.object.editmode_toggle()
+                
+                tree = newMat.node_tree
+                nodes = tree.nodes
+    
+                grp = None
+    
+                for node in nodes:
+                    if isinstance(node, ShaderNodeGroup):
+                        grp = node                        
+    
+                if grp and key in vgroupOverrides:
+                    overrides = vgroupOverrides[key]                
+                    for setting in overrides.keys():                    
+                        if setting in grp.inputs:
+                            grp.inputs[setting].default_value = overrides[setting]
 
 
     def afterMeshData(self):
@@ -637,12 +683,12 @@ class ImportBodyBinary():
         if self.subdiv:
             print("Adding subdiv")
             subdiv = self.obj.modifiers.new("Subdivision", 'SUBSURF')
-            subdiv.levels = 0
-            subdiv.render_levels = 2
+            subdiv.levels = self.subdivLevels
+            subdiv.render_levels = self.subdivLevels
             for proxy in self.importedProxies:
                 subdiv = proxy.obj.modifiers.new("Subdivision", 'SUBSURF')
-                subdiv.levels = 0
-                subdiv.render_levels = 2
+                subdiv.levels = self.subdivLevels
+                subdiv.render_levels = self.subdivLevels
 
         print("DONE!")
 

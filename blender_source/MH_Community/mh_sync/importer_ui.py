@@ -36,6 +36,13 @@ handleHiddenItems.append( ("MASK", "Mask", "Add a mask modifier to hide hidden s
 handleHiddenItems.append( ("MATERIAL", "Invis material", "Add an invisible material to hidden surfaces", 3) )
 handleHiddenItems.append( ("DELETE", "Delete", "Delete vertices for hidden surfaces", 4) )
 
+tweakItems = []
+tweakItems.append( ("NONE", "Leave as is", "Do not tweak materials to match slots", 1) )
+tweakItems.append( ("DEFAULT", "Generic tweaks", "Do generic tweaks for material slots", 2) )
+tweakItems.append( ("PALE", "Pale", "Generic tweaks for a slighly paler look", 3) )
+tweakItems.append( ("TAN", "Tan", "Generic tweks for a slightly more tan look", 4) )
+tweakItems.append( ("ASIAN", "Asian", "Generic tweks for a slightly more east-asian look", 5) )
+
 from .presets import loadOrCreateDefaultSettings
 
 _EVALUATED_MAKESKIN = False
@@ -57,6 +64,7 @@ def registerImporterConstantsAndSettings():
     bpy.types.Scene.MhPrefixProxy = BoolProperty(name="Prefix proxy names", description="Give all extra meshes (such as hair, clothes..) names that start with the name of the imported toon", default=settings["MhPrefixProxy"])
     bpy.types.Scene.MhMaskBase = BoolProperty(name="Mask base mesh if proxy available", description="If both the base mesh and a body proxy have been imported, then mask the base mesh.", default=settings["MhMaskBase"])
     bpy.types.Scene.MhAddSubdiv = BoolProperty(name="Add a subdivision", description="Add subdivision modifiers to all imported meshes", default=settings["MhAddSubdiv"])
+    bpy.types.Scene.MhSubdivLevels = IntProperty(name="Number of subdivision levels", description="Set number of subdivision levels in view port and render", default=settings["MhSubdivLevels"], min=0, max=6)
 
     bpy.types.Scene.MhHandleMaterials = bpy.props.EnumProperty(items=handleMaterialsItems, name="When material exists", description="What to do if a material with the same name already exists", default=settings["MhHandleMaterials"])
     bpy.types.Scene.MhMaterialObjectName = BoolProperty(name="Name material after object", description="When creating a material, give it a name based on what mesh object it belongs to.", default=settings["MhMaterialObjectName"])
@@ -94,7 +102,8 @@ def registerImporterConstantsAndSettings():
                                                  default=settings["MhOnlyBlendMat"])
     bpy.types.Scene.MhExtraGroups = BoolProperty(name="Extra vertex groups", description="Attempt to assign additional vertex groups for body parts, such as lips, fingernails, ears and so on. This works on the base mesh and most (but not all) proxies.", default=settings["MhExtraGroups"])
     bpy.types.Scene.MhExtraSlots = BoolProperty(name="Extra material slots", description="When having assigned extra vertex groups, also create copies of the skin material and assign to separate material slots. This is useful if you for example want a different roughness on the fingernails than on the skin.", default=settings["MhExtraSlots"])
-
+    bpy.types.Scene.MhTweakSlots = bpy.props.EnumProperty(items=tweakItems, name="Tweak material slots", description="In the default mode, the skin material is simply copied to each slot. With the other options, settings are tweaked a bit to look better for the respective slot material. This is only relevant for enhanced skin materials.", default=settings["MhTweakSlots"])
+    
     # In case MHX2 isn't loaded
     bpy.types.Object.MhHuman = BoolProperty(default=False)
     bpy.types.Object.MhScaleFactor = FloatProperty(default=0.1)
@@ -120,13 +129,15 @@ def addImporterSettingsToTab(layout, scn):
     meshBox.prop(scn, 'MhPrefixProxy', text="Prefix object name with toon")
     meshBox.prop(scn, 'MhMaskBase', text="Mask body when there is a proxy")
     meshBox.prop(scn, 'MhAddSubdiv', text="Add subdiv modifier")
+    meshBox.prop(scn, 'MhSubdivLevels', text="Subdiv levels")
 
     helperBox = layout.box()
     helperBox.label(text="Helper settings", icon="VPAINT_HLT")
     helperBox.label(text="How to handle helpers")
     helperBox.prop(scn, 'MhHandleHelper', text="")
     helperBox.prop(scn, 'MhDetailedHelpers', text="Detailed helper groups")
-    helperBox.prop(scn, 'MhAddSimpleMaterials', text="Simple Materials for Helpers")
+    if scn.MhDetailedHelpers:
+        helperBox.prop(scn, 'MhAddSimpleMaterials', text="Simple Materials for Helpers")
 
     #importHumanBox.separator()
     #importHumanBox.label(text="Body hidden faces:")
@@ -166,6 +177,8 @@ def addImporterSettingsToTab(layout, scn):
     extrasBox.prop(scn, 'MhEnhancedSSS', text='Enhanced skin SSS')
     extrasBox.prop(scn, 'MhExtraGroups', text='Extra vertex groups')
     extrasBox.prop(scn, 'MhExtraSlots', text='Slots for extra groups')
+    extrasBox.label(text="Tweak slots:")
+    extrasBox.prop(scn, 'MhTweakSlots', text='')
 
     global _EVALUATED_MAKESKIN
     global _MAKESKIN_AVAILABLE

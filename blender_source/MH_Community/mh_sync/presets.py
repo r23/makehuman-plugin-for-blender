@@ -13,6 +13,7 @@ _defaultSettings["MhImportWhat"] = "EVERYTHING"
 _defaultSettings["MhPrefixProxy"] = True
 _defaultSettings["MhMaskBase"] = True
 _defaultSettings["MhAddSubdiv"] = True
+_defaultSettings["MhSubdivLevels"] = 1
 _defaultSettings["MhHandleMaterials"] = "REUSE"
 _defaultSettings["MhMaterialObjectName"] = True
 _defaultSettings["MhPrefixMaterial"] = True
@@ -31,6 +32,7 @@ _defaultSettings["MhUseMakeSkin"] = True
 _defaultSettings["MhOnlyBlendMat"] = False
 _defaultSettings["MhExtraGroups"] = False
 _defaultSettings["MhExtraSlots"] = False
+_defaultSettings["MhTweakSlots"] = "NONE"
 _defaultSettings["MhHost"] = '127.0.0.1'
 _defaultSettings["MhPort"] = 12345
 
@@ -70,6 +72,7 @@ def getCleanMakeTargetSettings():
     mt = _getCleanMcMtSettings()
     mt["MhMaskBase"] = False
     mt["MhAddSubdiv"] = False
+    mt["MhSubdivLevels"] = 0
     mt["MhHiddenFaces"] = "NOTHING"
     mt["MhImportRig"] = False
     mt["MhRigBody"] = False
